@@ -30,12 +30,21 @@
 #define ARDUINOJSON_USE_DOUBLE      1 
 // DEFINE THE PINS THAT WILL BE MAPPED TO THE 7 SEG DISPLAY BELOW, 'a' to 'g'
 #define a     15
+#define b     32
+#define c     33
+#define d     25
+#define e     26
+#define f     27
+#define g     14
+#define dp    12
 /* Complete all others */
 
 
 
 // DEFINE VARIABLES FOR TWO LEDs AND TWO BUTTONs. LED_A, LED_B, BTN_A , BTN_B
 #define LED_A 4
+#define LED_B 0
+#define BTN_A 2
 /* Complete all others */
 
 
@@ -94,8 +103,18 @@ uint8_t number = 0;
 void setup() {
   Serial.begin(115200);  // INIT SERIAL  
 
+  // GENERATE RANDOM SEED
+  randomSeed(analogRead(36));
+
   // CONFIGURE THE ARDUINO PINS OF THE 7SEG AS OUTPUT
   pinMode(a,OUTPUT);
+  pinMode(b,OUTPUT);
+  pinMode(c,OUTPUT);
+  pinMode(d,OUTPUT);
+  pinMode(e,OUTPUT);
+  pinMode(f,OUTPUT);
+  pinMode(g,OUTPUT);
+  pinMode(dp,OUTPUT);
   /* Configure all others here */
 
   initialize();           // INIT WIFI, MQTT & NTP 
@@ -106,7 +125,7 @@ void setup() {
 
 
 void loop() {
-    // put your main code here, to run repeatedly: 
+  // put your main code here, to run repeatedly: 
     
 }
 
@@ -118,44 +137,47 @@ void loop() {
 //#                          UTIL FUNCTIONS                          #       
 //####################################################################
 void vButtonCheck( void * pvParameters )  {
-    configASSERT( ( ( uint32_t ) pvParameters ) == 1 );     
-      
-    for( ;; ) {
-        // Add code here to check if a button(S) is pressed
-        // then execute appropriate function if a button is pressed  
+  configASSERT( ( ( uint32_t ) pvParameters ) == 1 );     
+    
+  for( ;; ) {
+    // Add code here to check if a button(S) is pressed
+    if(digitalRead(BTN_A) == LOW){
+      // then execute appropriate function if a button is pressed
+      GDP();
+    }  
 
-        vTaskDelay(200 / portTICK_PERIOD_MS);  
-    }
+    vTaskDelay(200 / portTICK_PERIOD_MS);  
+  }
 }
 
 void vUpdate( void * pvParameters )  {
-    configASSERT( ( ( uint32_t ) pvParameters ) == 1 );    
-           
-    for( ;; ) {
-          // Task code goes here.   
-          // PUBLISH to topic every second.
-          JsonDocument doc; // Create JSon object
-          char message[1100]  = {0};
-
-          // Add key:value pairs to JSon object
-          doc["id"]         = "620012345";
-
-          serializeJson(doc, message);  // Seralize / Covert JSon object to JSon string and store in char* array
-
-          if(mqtt.connected() ){
-            publish(pubtopic, message);
-          }
+  configASSERT( ( ( uint32_t ) pvParameters ) == 1 );    
           
-            
-        vTaskDelay(1000 / portTICK_PERIOD_MS);  
+  for( ;; ) {
+    // Task code goes here.   
+    // PUBLISH to topic every second.
+    JsonDocument doc; // Create JSon object
+    char message[1100]  = {0};
+
+    // Add key:value pairs to JSon object
+    doc["id"]         = "620012345";
+
+    serializeJson(doc, message);  // Seralize / Covert JSon object to JSon string and store in char* array
+
+    if(mqtt.connected() ){
+      publish(pubtopic, message);
     }
+    
+      
+  vTaskDelay(1000 / portTICK_PERIOD_MS);  
+  }
 }
 
 unsigned long getTimeStamp(void) {
-          // RETURNS 10 DIGIT TIMESTAMP REPRESENTING CURRENT TIME
-          time_t now;         
-          time(&now); // Retrieve time[Timestamp] from system and save to &now variable
-          return now;
+  // RETURNS 10 DIGIT TIMESTAMP REPRESENTING CURRENT TIME
+  time_t now;         
+  time(&now); // Retrieve time[Timestamp] from system and save to &now variable
+  return now;
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -193,9 +215,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     if(strcmp(led, "LED A") == 0){
       /*Add code to toggle LED A with appropriate function*/
+      toggleLED(a);
     }
     if(strcmp(led, "LED B") == 0){
       /*Add code to toggle LED B with appropriate function*/
+      toggleLED(b);
     }
 
     // PUBLISH UPDATE BACK TO FRONTEND
@@ -204,8 +228,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // Add key:value pairs to Json object according to below schema
     // ‘{"id": "student_id", "timestamp": 1702212234, "number": 9, "ledA": 0, "ledB": 0}’
-    doc["id"]         = "ID"; // Change to your student ID number
+    doc["id"]         = "620162206"; // Change to your student ID number
     doc["timestamp"]  = getTimeStamp();
+    doc["number"]     = 0;
+    doc["ledA"]       = getLEDStatus(LED_A);
+    doc["ledB"]       = getLEDStatus(LED_B);
     /*Add code here to insert all other variabes that are missing from Json object
     according to schema above
     */
@@ -218,18 +245,18 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 bool publish(const char *topic, const char *payload){   
-     bool res = false;
-     try{
-        res = mqtt.publish(topic,payload);
-        // Serial.printf("\nres : %d\n",res);
-        if(!res){
-          res = false;
-          throw false;
-        }
-     }
-     catch(...){
-      Serial.printf("\nError (%d) >> Unable to publish message\n", res);
-     }
+  bool res = false;
+  try{
+    res = mqtt.publish(topic,payload);
+    // Serial.printf("\nres : %d\n",res);
+    if(!res){
+      res = false;
+      throw false;
+    }
+  }
+  catch(...){
+  Serial.printf("\nError (%d) >> Unable to publish message\n", res);
+  }
   return res;
 }
 
@@ -237,19 +264,88 @@ bool publish(const char *topic, const char *payload){
 
 void Display(unsigned char number){
   /* This function takes an integer between 0 and 9 as input. This integer must be written to the 7-Segment display */
+  if(number == 0){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);  
+    digitalWrite(e,HIGH);
+    digitalWrite(f,HIGH);
+  }else if(number == 1){
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+  }else if(number == 2){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(e,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 3){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 4){
+
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 5){
+    digitalWrite(a,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 6){
+    digitalWrite(a,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(e,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 7){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+  }else if(number == 8){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(e,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
+  }else if(number == 9){
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
+  }
+
   
 }
 
 int8_t getLEDStatus(int8_t LED) {
-  // RETURNS THE STATE OF A SPECIFIC LED. 0 = LOW, 1 = HIGH  
+  // RETURNS THE STATE OF A SPECIFIC LED. 0 = LOW, 1 = HIGH
+  return digitalRead(LED);  
 }
 
 void setLEDState(int8_t LED, int8_t state){
-  // SETS THE STATE OF A SPECIFIC LED   
+  // SETS THE STATE OF A SPECIFIC LED
+  digitalWrite(LED, state);
 }
 
 void toggleLED(int8_t LED){
-  // TOGGLES THE STATE OF SPECIFIC LED   
+  // TOGGLES THE STATE OF SPECIFIC LED
+  if(getLEDStatus(LED) == LOW){
+    setLEDState(LED, HIGH);
+  }else{
+    setLEDState(LED, LOW);
+  }
 }
 
 void GDP(void){
@@ -259,10 +355,11 @@ void GDP(void){
   /* Add code here to generate a random integer and then assign 
      this integer to number variable below
   */
-   number = 0 ;
+  number = random(10);
 
   // DISPLAY integer on 7Seg. by 
   /* Add code here to calling appropriate function that will display integer to 7-Seg*/
+  Display(number);
 
   // PUBLISH number to topic.
   JsonDocument doc; // Create JSon object
@@ -270,8 +367,11 @@ void GDP(void){
 
   // Add key:value pairs to Json object according to below schema
   // ‘{"id": "student_id", "timestamp": 1702212234, "number": 9, "ledA": 0, "ledB": 0}’
-  doc["id"]         = "ID"; // Change to your student ID number
+  doc["id"]         = "620162206"; // Change to your student ID number
   doc["timestamp"]  = getTimeStamp();
+  doc["number"]     = number;
+  doc["ledA"]       = getLEDStatus(LED_A);
+  doc["ledB"]       = getLEDStatus(LED_B);
   /*Add code here to insert all other variabes that are missing from Json object
   according to schema above
   */
