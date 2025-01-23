@@ -9,10 +9,14 @@
                         <VCol cols="10"  align="center"   > 
 
                             <RouterLink class="route" :to="{ name: 'Home' }" >
-                                <VBtn class="text-subtitle-2"   density="compact"  color="primary" :variant="(route.name == 'Home')? 'tonal':'text'">Home</VBtn>
+                                <VBtn class="text-subtitle-2" density="compact" color="primary" :variant="(route.name == 'Home')? 'tonal':'text'">Home</VBtn>
                             </RouterLink>
 
                             <!-- Add Links Below -->
+                            
+                            <RouterLink class="route" to="/game">
+                                <VBtn class="text-subtitle-2" density="compact" color="primary" :variant="(route.name == 'Game')? 'tonal':'text'">Game</VBtn>
+                            </RouterLink>
                                             
 
                         </VCol>
