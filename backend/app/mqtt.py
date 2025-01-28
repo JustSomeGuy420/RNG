@@ -16,7 +16,7 @@ class MQTT:
     ID = f"IOT_B_{randint(1,1000000)}"
 
     #  DEFINE ALL TOPICS TO SUBSCRIBE TO
-    sub_topics = [("620162206_pub", 0), ("620162206", 0), ("620162206_sub", 0)] #  A list of tuples of (topic, qos). Both topic and qos must be present in the tuple.
+    sub_topics = [("620162206", 0), ("620162206_sub", 0)] #  A list of tuples of (topic, qos). Both topic and qos must be present in the tuple.
 
 
     def __init__(self,mongo):
@@ -35,12 +35,10 @@ class MQTT:
 
         # REGISTER CALLBACK FUNCTION FOR EACH TOPIC
         self.client.message_callback_add("620162206", self.gdp)
-        self.client.message_callback_add("620162206_pub", self.toggle)
+        self.client.message_callback_add("620162206_sub", self.toggle)
 
         # ADD MQTT SERVER AND PORT INFORMATION BELOW
-        self.client.connect_async("localhost", 1883, 60)
-       
-
+        self.client.connect_async("broker.emqx.io", 1883, 60)
 
     def connack_string(self,rc):
         connection = {0: "Connection successful", 1: "Connection refused - incorrect protocol version", 2: "Connection refused - invalid client identifier", 3: "Connection refused - server unavailable", 4: "Connection refused - bad username or password", 5: "Connection refused - not authorised" }
@@ -85,7 +83,7 @@ class MQTT:
         try:
             topic   = msg.topic
             payload = msg.payload.decode("utf-8")
-            print(payload) # UNCOMMENT WHEN DEBUGGING  
+            #print(payload) # UNCOMMENT WHEN DEBUGGING  
             
             update  = loads(payload) # CONVERT FROM JSON STRING TO JSON OBJECT  
             self.mongo.addUpdate(update) # INSERT INTO DATABASE 
@@ -99,7 +97,7 @@ class MQTT:
             topic   = msg.topic
             payload = msg.payload.decode("utf-8")
             # print(payload) # UNCOMMENT WHEN DEBUGGING
-            update  = loads(payload) # CONVERT FROM JSON STRING TO JSON OBJECT  
+            update  = loads(payload) # CONVERT FROM JSON STRING TO JSON OBJECT 
         
              
             print(update)

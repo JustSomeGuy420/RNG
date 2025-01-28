@@ -54,6 +54,7 @@ class DB:
     def addUpdate(self,data):
         '''ADD A NEW STORAGE LOCATION TO COLLECTION'''
         try:
+            print(data)
             remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
             result      = remotedb.ELET2415.update.insert_one(data)
         except Exception as e:
@@ -74,7 +75,7 @@ class DB:
             msg = str(e)
             print("numberFrequency error ",msg)
             
-        else:                  
+        else:                
             return result
 
 

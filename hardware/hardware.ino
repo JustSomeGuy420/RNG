@@ -1,14 +1,7 @@
-//##################################################################################################################
-//##                                      ELET2415 DATA ACQUISITION SYSTEM CODE                                   ##
-//##                                                                                                              ##
-//##################################################################################################################
-
 // LIBRARY IMPORTS
 #include <rom/rtc.h>
-
-#ifndef _WIFI_H 
 #include <WiFi.h>
-#endif
+#include <PubSubClient.h>
 
 #ifndef STDLIB_H
 #include <stdlib.h>
@@ -39,28 +32,23 @@
 #define dp    12
 /* Complete all others */
 
-
-
 // DEFINE VARIABLES FOR TWO LEDs AND TWO BUTTONs. LED_A, LED_B, BTN_A , BTN_B
 #define LED_A 4
 #define LED_B 0
 #define BTN_A 2
 /* Complete all others */
 
+// WiFi
+const char *ssid = "Pixel_3847"; // Enter your WiFi name
+const char *password = "12345678";  // Enter WiFi password
 
-
-// MQTT CLIENT CONFIG  
+// MQTT Broker
+const char *mqtt_server = "broker.emqx.io";
 static const char* pubtopic       = "620162206";                    // Add your ID number here
 static const char* subtopic[]     = {"620162206_sub","/elet2415"};  // Array of Topics(Strings) to subscribe to
-static const char* mqtt_server    = "www.yanacreations.com";                // Broker IP address or Domain name as a String 
-static uint16_t mqtt_port         = 1883;
-
-// WIFI CREDENTIALS
-const char* ssid                  = "MonaConnect"; // Add your Wi-Fi ssid
-const char* password              = ""; // Add your Wi-Fi password 
-
-
-
+const char *mqtt_username = "emqx";
+const char *mqtt_password = "public";
+const int mqtt_port = 1883;
 
 // TASK HANDLES 
 TaskHandle_t xMQTT_Connect          = NULL; 
@@ -81,11 +69,10 @@ void vUpdate( void * pvParameters );
 void GDP(void);   // GENERATE DISPLAY PUBLISH
 
 /* Declare your functions below */
-void Display(unsigned char number);
+void Display(unsigned char num);
 int8_t getLEDStatus(int8_t LED);
 void setLEDState(int8_t LED, int8_t state);
 void toggleLED(int8_t LED);
-  
 
 //############### IMPORT HEADER FILES ##################
 #ifndef NTP_H
@@ -99,9 +86,10 @@ void toggleLED(int8_t LED);
 // Temporary Variables
 uint8_t number = 0;
 
-
 void setup() {
-  Serial.begin(115200);  // INIT SERIAL  
+  // put your setup code here, to run once:
+  // Set software serial baud to 115200;
+  Serial.begin(115200);
 
   // GENERATE RANDOM SEED
   randomSeed(analogRead(36));
@@ -115,24 +103,63 @@ void setup() {
   pinMode(f,OUTPUT);
   pinMode(g,OUTPUT);
   pinMode(dp,OUTPUT);
+  pinMode(LED_A,OUTPUT);
+  pinMode(LED_B,OUTPUT);
+  pinMode(BTN_A,INPUT_PULLUP);
   /* Configure all others here */
 
-  initialize();           // INIT WIFI, MQTT & NTP 
-  // vButtonCheckFunction(); // UNCOMMENT IF USING BUTTONS THEN ADD LOGIC FOR INTERFACING WITH BUTTONS IN THE vButtonCheck FUNCTION
+  // Test 7 Segment Display
+  Display(8);
 
+
+  // Connecting to a Wi-Fi network
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to the Wi-Fi network");
+  //connecting to a mqtt broker
+  mqtt.setServer(mqtt_server, mqtt_port);
+  mqtt.setCallback(callback);
+  while (!mqtt.connected()) {
+    String client_id = "esp32-client-";
+    client_id += String(WiFi.macAddress());
+    Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
+    if (mqtt.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
+      Serial.println("Public EMQX MQTT broker connected");
+
+      const uint8_t size = sizeof(subtopic)/sizeof(subtopic[0]);
+        for(int x = 0; x< size ; x++){
+          mqtt.subscribe(subtopic[x]);
+        }
+    } else {
+      Serial.print("failed with state ");
+      Serial.print(mqtt.state());
+      delay(2000);
+    }
+  }
+
+  initialize();           // INIT NTP
+  vButtonCheckFunction(); // UNCOMMENT IF USING BUTTONS THEN ADD LOGIC FOR INTERFACING WITH BUTTONS IN THE vButtonCheck FUNCTION
 }
-  
-
 
 void loop() {
-  // put your main code here, to run repeatedly: 
-    
+  // put your main code here, to run repeatedly:
+  mqtt.loop();
 }
 
+/*void callback(char *topic, byte *payload, unsigned int length) {
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char) payload[i]);
+  }
+  Serial.println();
+  Serial.println("-----------------------");
+}*/
 
-
-
-  
 //####################################################################
 //#                          UTIL FUNCTIONS                          #       
 //####################################################################
@@ -160,7 +187,11 @@ void vUpdate( void * pvParameters )  {
     char message[1100]  = {0};
 
     // Add key:value pairs to JSon object
-    doc["id"]         = "620012345";
+    doc["id"]         = "6200162206";
+    doc["timestamp"]  = getTimeStamp();
+    doc["number"]     = number;
+    doc["ledA"]       = getLEDStatus(LED_A);
+    doc["ledB"]       = getLEDStatus(LED_B);
 
     serializeJson(doc, message);  // Seralize / Covert JSon object to JSon string and store in char* array
 
@@ -215,11 +246,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     if(strcmp(led, "LED A") == 0){
       /*Add code to toggle LED A with appropriate function*/
-      toggleLED(a);
+      toggleLED(LED_A);
     }
     if(strcmp(led, "LED B") == 0){
       /*Add code to toggle LED B with appropriate function*/
-      toggleLED(b);
+      toggleLED(LED_B);
     }
 
     // PUBLISH UPDATE BACK TO FRONTEND
@@ -230,7 +261,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // ‘{"id": "student_id", "timestamp": 1702212234, "number": 9, "ledA": 0, "ledB": 0}’
     doc["id"]         = "620162206"; // Change to your student ID number
     doc["timestamp"]  = getTimeStamp();
-    doc["number"]     = 0;
+    doc["number"]     = number;
     doc["ledA"]       = getLEDStatus(LED_A);
     doc["ledB"]       = getLEDStatus(LED_B);
     /*Add code here to insert all other variabes that are missing from Json object
@@ -238,7 +269,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     */
 
     serializeJson(doc, message);  // Seralize / Covert JSon object to JSon string and store in char* array  
-    publish("topic", message);    // Publish to a topic that only the Frontend subscribes to.
+    publish(pubtopic, message);    // Publish to a topic that only the Frontend subscribes to.
           
   } 
 
@@ -262,8 +293,19 @@ bool publish(const char *topic, const char *payload){
 
 //***** Complete the util functions below ******
 
-void Display(unsigned char number){
+void Display(unsigned char num){
   /* This function takes an integer between 0 and 9 as input. This integer must be written to the 7-Segment display */
+  number = num;
+  digitalWrite(a,LOW);
+  digitalWrite(b,LOW);
+  digitalWrite(c,LOW);
+  digitalWrite(d,LOW);
+  digitalWrite(e,LOW);
+  digitalWrite(f,LOW);
+  digitalWrite(g,LOW);
+
+  delay(500);
+  
   if(number == 0){
     digitalWrite(a,HIGH);
     digitalWrite(b,HIGH);
@@ -324,6 +366,14 @@ void Display(unsigned char number){
     digitalWrite(d,HIGH);
     digitalWrite(f,HIGH);
     digitalWrite(g,HIGH);
+  }else{
+    digitalWrite(a,HIGH);
+    digitalWrite(b,HIGH);
+    digitalWrite(c,HIGH);
+    digitalWrite(d,HIGH);
+    digitalWrite(e,HIGH);
+    digitalWrite(f,HIGH);
+    digitalWrite(g,HIGH);
   }
 
   
@@ -331,7 +381,11 @@ void Display(unsigned char number){
 
 int8_t getLEDStatus(int8_t LED) {
   // RETURNS THE STATE OF A SPECIFIC LED. 0 = LOW, 1 = HIGH
-  return digitalRead(LED);  
+  if (digitalRead(LED) == LOW){
+    return 0;
+  }else{
+    return 1;
+  }
 }
 
 void setLEDState(int8_t LED, int8_t state){
@@ -355,11 +409,10 @@ void GDP(void){
   /* Add code here to generate a random integer and then assign 
      this integer to number variable below
   */
-  number = random(10);
 
   // DISPLAY integer on 7Seg. by 
   /* Add code here to calling appropriate function that will display integer to 7-Seg*/
-  Display(number);
+  Display(random(10));
 
   // PUBLISH number to topic.
   JsonDocument doc; // Create JSon object
@@ -380,3 +433,4 @@ void GDP(void){
   publish(pubtopic, message);
 
 }
+

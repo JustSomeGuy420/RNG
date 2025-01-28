@@ -61,7 +61,6 @@ def get_onCountPost():
     if request.method == "POST":
         try:
             form =  request.form
-
             LED_Name = escape(form.get("LED_Name"))
             count = mongo.onCount(LED_Name)
             if count:
